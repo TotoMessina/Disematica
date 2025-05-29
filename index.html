@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Diseñador 3D de Muebles</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    #ui input[type=range] {
+      width: 100px;
+    }
+    #ui label {
+      display: inline-block;
+      width: 20px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="ui">
+    <div>
+      <button onclick="addCube()">Agregar Cubo</button>
+      <button onclick="addSphere()">Agregar Esfera</button>
+      <button onclick="addCylinder()">Agregar Cilindro</button>
+      <input type="color" id="colorPicker" onchange="changeColor(event)" />
+    </div>
+
+    <hr>
+
+    <div>
+      <h4>Rotar</h4>
+      <div>
+        <label>X:</label><input type="range" min="0" max="360" value="0" oninput="rotateObject('x', this.value)">
+      </div>
+      <div>
+        <label>Y:</label><input type="range" min="0" max="360" value="0" oninput="rotateObject('y', this.value)">
+      </div>
+      <div>
+        <label>Z:</label><input type="range" min="0" max="360" value="0" oninput="rotateObject('z', this.value)">
+      </div>
+    </div>
+
+    <hr>
+
+    <div>
+      <h4>Escalar</h4>
+      <div>
+        <label>X:</label><input type="number" value="1" step="0.1" oninput="scaleObject('x', this.value)">
+      </div>
+      <div>
+        <label>Y:</label><input type="number" value="1" step="0.1" oninput="scaleObject('y', this.value)">
+      </div>
+      <div>
+        <label>Z:</label><input type="number" value="1" step="0.1" oninput="scaleObject('z', this.value)">
+      </div>
+    </div>
+
+    <button onclick="subtractSphereFromSelected()">Hacer Hueco Esférico</button>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
