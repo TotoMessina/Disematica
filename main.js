@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DragControls } from 'three/addons/controls/DragControls.js';
-//import { CSG } from 'https://cdn.jsdelivr.net/npm/three-csg-ts@2.0.5/+esm';
-
 
 let scene, camera, renderer, controls, dragControls;
 let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
 let objects = [];
+let directionalLight;
+const moveSpeed = 0.05;
+const keysPressed = {};
 window.selectedObject = null;
 
 init();
@@ -27,9 +28,23 @@ function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
 
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5, 10, 7.5);
-  scene.add(light);
+  // Luz direccional principal
+  directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+  scene.add(directionalLight);
+
+  // Esfera que representa la luz
+  const lightSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xffff00 })
+  );
+  lightSphere.position.copy(new THREE.Vector3(5, 10, 7.5));
+  directionalLight.position.copy(lightSphere.position);
+  lightSphere.name = 'lightSphere';
+
+  scene.add(lightSphere);
+  objects.push(lightSphere); // que pueda arrastrarse
+
+  // Luz ambiente suave
   scene.add(new THREE.AmbientLight(0x404040));
 
   const grid = new THREE.GridHelper(20, 20);
@@ -37,6 +52,7 @@ function init() {
 
   window.addEventListener('resize', onWindowResize);
   window.addEventListener('click', onMouseClick);
+  window.addEventListener('dblclick', onDoubleClick);
 }
 
 function addCube() {
@@ -70,13 +86,15 @@ function updateDragControls() {
   dragControls = new DragControls(objects, camera, renderer.domElement);
   dragControls.addEventListener('dragstart', () => controls.enabled = false);
   dragControls.addEventListener('dragend', () => controls.enabled = true);
+  dragControls.addEventListener('drag', (event) => {
+    if (event.object.name === 'lightSphere') {
+      directionalLight.position.copy(event.object.position);
+    }
+  });
 }
 
 function onMouseClick(event) {
-  // Si se clickeó sobre un input, button o cualquier control del UI, no hacer nada
-  if (event.target.closest('#ui') || event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON') {
-    return;
-  }
+  if (event.target.closest('#ui') || event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON') return;
 
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -98,14 +116,12 @@ function onMouseClick(event) {
 function highlightSelected(obj) {
   removeHighlights();
   if (obj) {
-    obj.material.emissive = new THREE.Color(0x333333); // resalta con leve brillo
+    obj.material.emissive = new THREE.Color(0x333333);
   }
 }
 
 function removeHighlights() {
-  objects.forEach(o => {
-    o.material.emissive = new THREE.Color(0x000000);
-  });
+  objects.forEach(o => o.material.emissive = new THREE.Color(0x000000));
 }
 
 function changeColor(event) {
@@ -113,6 +129,28 @@ function changeColor(event) {
   if (selectedObject) {
     selectedObject.material.color = newColor;
   }
+}
+
+function deleteSelected() {
+  if (!selectedObject) return;
+  scene.remove(selectedObject);
+  objects = objects.filter(o => o !== selectedObject);
+  selectedObject = null;
+  window.selectedObject = null;
+  updateDragControls();
+}
+
+function applyTexture(event) {
+  const file = event.target.files[0];
+  if (!file || !selectedObject) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const texture = new THREE.TextureLoader().load(e.target.result);
+    selectedObject.material.map = texture;
+    selectedObject.material.needsUpdate = true;
+  };
+  reader.readAsDataURL(file);
 }
 
 function onWindowResize() {
@@ -123,47 +161,126 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
+  handleFreeCameraMovement();
   controls.update();
   renderer.render(scene, camera);
 }
+
+function handleFreeCameraMovement() {
+  const forward = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0); // Y-axis
+
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+
+  right.crossVectors(forward, up).normalize();
+
+  if (keysPressed['w']) camera.position.add(forward.clone().multiplyScalar(moveSpeed));
+  if (keysPressed['s']) camera.position.add(forward.clone().multiplyScalar(-moveSpeed));
+  if (keysPressed['a']) camera.position.add(right.clone().multiplyScalar(-moveSpeed));
+  if (keysPressed['d']) camera.position.add(right.clone().multiplyScalar(moveSpeed));
+  if (keysPressed['q']) camera.position.y += moveSpeed;
+  if (keysPressed['e']) camera.position.y -= moveSpeed;
+
+  controls.update(); // Para mantener OrbitControls sincronizado
+}
+
+function onDoubleClick(event) {
+  // No activar si se clickea en el UI
+  if (event.target.closest('#ui') || event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON') {
+    return;
+  }
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(objects, true);
+
+  if (intersects.length > 0) {
+    const intersect = intersects[0];
+    const point = intersect.point;
+    const object = intersect.object;
+
+    // Calcular dirección desde la cámara hacia el punto clickeado
+    const direction = new THREE.Vector3().subVectors(camera.position, point).normalize();
+
+    // Nueva posición de la cámara (un poco alejada del punto)
+    const newCamPos = new THREE.Vector3().addVectors(point, direction.multiplyScalar(3));
+
+    // Transición suave
+    moveCameraTo(newCamPos, object.position);
+  }
+}
+
+function moveCameraTo(newPosition, lookAtTarget) {
+  const duration = 600; // milisegundos
+  const start = {
+    position: camera.position.clone(),
+    target: controls.target.clone()
+  };
+  const end = {
+    position: newPosition.clone(),
+    target: lookAtTarget.clone()
+  };
+
+  const startTime = performance.now();
+
+  function animateCamera(time) {
+    const elapsed = time - startTime;
+    const t = Math.min(elapsed / duration, 1);
+
+    camera.position.lerpVectors(start.position, end.position, t);
+    controls.target.lerpVectors(start.target, end.target, t);
+    controls.update();
+
+    if (t < 1) {
+      requestAnimationFrame(animateCamera);
+    }
+  }
+
+  requestAnimationFrame(animateCamera);
+}
+
+// Escalar y rotar
+window.rotateObject = function (axis, degrees) {
+  if (!selectedObject) return;
+  const radians = degrees * (Math.PI / 180);
+  selectedObject.rotation[axis] = radians;
+};
+
+window.scaleObject = function (axis, value) {
+  if (!selectedObject) return;
+  selectedObject.scale[axis] = parseFloat(value);
+};
+
+// Luz: funciones expuestas al HTML
+window.updateLightPosition = function (axis, value) {
+  directionalLight.position[axis] = parseFloat(value);
+};
+
+window.updateLightIntensity = function (value) {
+  directionalLight.intensity = parseFloat(value);
+};
+
+window.updateLightColor = function (value) {
+  directionalLight.color = new THREE.Color(value);
+};
+
+document.addEventListener('keydown', (e) => {
+  keysPressed[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener('keyup', (e) => {
+  keysPressed[e.key.toLowerCase()] = false;
+});
+
 
 globalThis.addCube = addCube;
 globalThis.addSphere = addSphere;
 globalThis.addCylinder = addCylinder;
 globalThis.changeColor = changeColor;
-
-window.rotateObject = function(axis, degrees) {
-  if (!selectedObject) return;
-  const radians = degrees * (Math.PI / 180);
-  selectedObject.rotation[axis] = radians;
-  console.log(`Rotando ${axis} a ${degrees}°`);
-};
-
-window.scaleObject = function(axis, value) {
-  if (!selectedObject) return;
-  selectedObject.scale[axis] = parseFloat(value);
-  console.log(`Escalando ${axis} a ${value}`);
-};
-
-function subtractSphereFromSelected() {
-  if (!selectedObject) {
-    alert("Seleccioná un objeto primero");
-    return;
-  }
-
-  const subtractGeo = new THREE.SphereGeometry(0.4, 32, 32);
-  const subtractMesh = new THREE.Mesh(subtractGeo, new THREE.MeshStandardMaterial());
-
-  // Posicionar la esfera donde querés hacer el hueco
-  subtractMesh.position.copy(selectedObject.position);
-
-  const result = CSG.subtract(selectedObject, subtractMesh);
-
-  // Remplazar el objeto original con el nuevo con hueco
-  scene.remove(selectedObject);
-  objects = objects.filter(o => o !== selectedObject);
-  scene.add(result);
-  objects.push(result);
-  selectedObject = result;
-  window.selectedObject = result;
-}
+globalThis.deleteSelected = deleteSelected;
+globalThis.applyTexture = applyTexture;

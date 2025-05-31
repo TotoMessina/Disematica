@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Diseñador 3D de Muebles</title>
+  <script src="https://cdn.jsdelivr.net/gh/manthrax/THREE-CSGMesh/three-csg.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; }
     #ui {
@@ -71,8 +72,8 @@
       </div>
     </div>
 
-    <button onclick="subtractSphereFromSelected()">Hacer Hueco Esférico</button>
-  </div>
+    <button onclick="deleteSelectedObject()">Eliminar Objeto</button>
+    <input type="file" accept="image/*" onchange="applyTexture(event)">  </div>
 
   <script type="module" src="main.js"></script>
 </body>
