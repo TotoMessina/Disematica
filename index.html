@@ -23,6 +23,35 @@
       display: inline-block;
       width: 20px;
     }
+    #hud {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(30, 30, 30, 0.8);
+        color: white;
+        padding: 10px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-family: sans-serif;
+        z-index: 100;
+    }
+    body.molding-mode {
+      cursor: grab;
+    }
+    #molding-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: sans-serif;
+      font-size: 14px;
+      z-index: 1000;
+      pointer-events: none;
+      transition: background 0.3s;
+    }
   </style>
   <script type="importmap">
     {
@@ -74,6 +103,16 @@
 
     <button onclick="deleteSelectedObject()">Eliminar Objeto</button>
     <input type="file" accept="image/*" onchange="applyTexture(event)">  </div>
+
+    <div id="hud">
+      <strong>Controles de camara:</strong><br>
+      W/A/S/D: mover<br>
+      Q/E: subir/bajar<br>
+      Scroll: zoom<br>
+      Doble clic: enfocar<br>
+      Mantener Shift + click + mover: Expansion/Contraccion de objetos<br>
+    </div>
+    <div id="molding-status">Modo Moldeo: OFF</div>
 
   <script type="module" src="main.js"></script>
 </body>

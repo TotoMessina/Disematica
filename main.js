@@ -9,6 +9,13 @@ let objects = [];
 let directionalLight;
 const moveSpeed = 0.05;
 const keysPressed = {};
+let isDraggingFace = false;
+let faceNormal = new THREE.Vector3();
+let dragStartY = 0;
+let isShiftDown = false;
+let isExpanding = false; // ya deberías tener esto
+let activeBox = null;
+const statusText = document.getElementById('molding-status');
 window.selectedObject = null;
 
 init();
@@ -103,13 +110,31 @@ function onMouseClick(event) {
   const intersects = raycaster.intersectObjects(objects);
 
   if (intersects.length > 0) {
-    selectedObject = intersects[0].object;
-    window.selectedObject = selectedObject;
-    highlightSelected(selectedObject);
+      const intersect = intersects[0];
+      selectedObject = intersect.object;
+
+      // Mostrar UI si es parte del UI
+      if (intersect.object.name === 'ui') {
+          selectedObject = null;
+          return;
+      }
+
+      // Si Shift está presionado, activamos el modo moldeo
+      if (isShiftDown) {
+          faceNormal.copy(intersect.face.normal)
+              .transformDirection(selectedObject.matrixWorld)
+              .normalize();
+          dragStartY = event.clientY;
+          isDraggingFace = true;
+      } else {
+          // Selección simple
+          selectedObject.material.emissive.set(0x444444);
+      }
   } else {
-    selectedObject = null;
-    window.selectedObject = null;
-    removeHighlights();
+      if (selectedObject) {
+          selectedObject.material.emissive.set(0x000000);
+      }
+      selectedObject = null;
   }
 }
 
@@ -244,6 +269,44 @@ function moveCameraTo(newPosition, lookAtTarget) {
   requestAnimationFrame(animateCamera);
 }
 
+window.addEventListener('mousemove', (event) => {
+  if (!isDraggingFace || !selectedObject || !isShiftDown || !faceNormal) return;
+
+  const deltaY = event.clientY - dragStartY;
+  dragStartY = event.clientY;
+
+  const scaleAmount = deltaY * -0.01;
+
+  // Crear un vector de escala
+  const scale = new THREE.Vector3(1, 1, 1);
+  if (Math.abs(faceNormal.x) > 0.9) scale.x += scaleAmount * Math.sign(faceNormal.x);
+  if (Math.abs(faceNormal.y) > 0.9) scale.y += scaleAmount * Math.sign(faceNormal.y);
+  if (Math.abs(faceNormal.z) > 0.9) scale.z += scaleAmount * Math.sign(faceNormal.z);
+
+  // Aplicar la escala
+  selectedObject.scale.multiply(scale);
+
+  // Prevenir reducción a cero
+  selectedObject.scale.x = Math.max(0.1, selectedObject.scale.x);
+  selectedObject.scale.y = Math.max(0.1, selectedObject.scale.y);
+  selectedObject.scale.z = Math.max(0.1, selectedObject.scale.z);
+
+  // Mover el objeto en dirección contraria a la normal para simular crecimiento desde la cara
+  const movement = faceNormal.clone().multiplyScalar(scaleAmount * 0.5); // el 0.5 lo podés ajustar
+  selectedObject.position.add(movement);
+});
+
+window.addEventListener('keyup', (event) => {
+  if (event.key === 'Shift') {
+    isShiftDown = false;
+    isDraggingFace = false; // Esto detiene la expansión inmediatamente
+    faceNormal = null;
+    document.body.classList.remove('molding-mode');
+    statusText.textContent = 'Modo Moldeo: OFF';
+    statusText.style.background = 'rgba(128, 0, 0, 0.8)';
+  }
+});
+
 // Escalar y rotar
 window.rotateObject = function (axis, degrees) {
   if (!selectedObject) return;
@@ -271,10 +334,26 @@ window.updateLightColor = function (value) {
 
 document.addEventListener('keydown', (e) => {
   keysPressed[e.key.toLowerCase()] = true;
+  if (event.key === 'Shift') {
+    isShiftDown = true;
+    document.body.classList.add('molding-mode');
+    statusText.textContent = 'Modo Moldeo: ON';
+    statusText.style.background = 'rgba(0, 128, 0, 0.8)';
+  }
 });
 
 document.addEventListener('keyup', (e) => {
   keysPressed[e.key.toLowerCase()] = false;
+  if (event.key === 'Shift') {
+    isShiftDown = false;
+    document.body.classList.remove('molding-mode');
+    statusText.textContent = 'Modo Moldeo: OFF';
+    statusText.style.background = 'rgba(128, 0, 0, 0.8)';
+    if (isExpanding) {
+      isExpanding = false;
+      activeBox = null;
+    }
+  }
 });
 
 
