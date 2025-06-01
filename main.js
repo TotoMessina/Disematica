@@ -17,6 +17,8 @@ let isExpanding = false; // ya deberías tener esto
 let activeBox = null;
 const statusText = document.getElementById('molding-status');
 window.selectedObject = null;
+const infoLabel = document.getElementById('infoLabel');
+const tempVec = new THREE.Vector3();
 
 init();
 animate();
@@ -189,6 +191,38 @@ function animate() {
   handleFreeCameraMovement();
   controls.update();
   renderer.render(scene, camera);
+  if (selectedObject) {
+    // Obtener dimensiones
+    const bbox = new THREE.Box3().setFromObject(selectedObject);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+
+    const ancho = size.x.toFixed(2);
+    const alto = size.y.toFixed(2);
+    const profundo = size.z.toFixed(2);
+    const area = (size.x * size.y).toFixed(2); // asumiendo m² como X * Y
+
+    // Proyectar al espacio 2D
+    bbox.getCenter(tempVec);
+    tempVec.project(camera);
+
+    const x = (tempVec.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-tempVec.y * 0.5 + 0.5) * window.innerHeight;
+
+    // Posicionar y mostrar
+    infoLabel.style.left = `${x}px`;
+    infoLabel.style.top = `${y}px`;
+    infoLabel.innerHTML = `
+        <strong>Medidas:</strong><br>
+        Ancho: ${ancho} m<br>
+        Alto: ${alto} m<br>
+        Profundo: ${profundo} m<br>
+        Área: ${area} m²
+    `;
+    infoLabel.style.display = 'block';
+  } else {
+      infoLabel.style.display = 'none';
+  }
 }
 
 function handleFreeCameraMovement() {
